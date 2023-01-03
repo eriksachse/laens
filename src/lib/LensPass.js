@@ -16,9 +16,9 @@ const LensShader = {
     tex: { type: "t", value: null },
     time: { type: "f", value: 0.0 },
     factor: { type: "f", value: 0.0 },
-    var1: { type: "f", value: 1.0 },
+    factor2: { type: "f", value: 0.0 },
+    factor3: { type: "f", value: 1.0 },
     sqrtval: { type: "f", value: 1.0 },
-    chromation: { type: "f", value: 0.0 },
   },
   vertexShader: `
       varying vec2 vUv;
@@ -31,37 +31,33 @@ const LensShader = {
       uniform int byp;
       uniform float time;
       uniform float factor;
-      uniform float chromation;
-      uniform float var1;
+      uniform float factor2;
+      uniform float factor3;
       uniform float sqrtval;
       uniform vec2 resolution;
       uniform sampler2D tex;
       varying vec2 vUv;
+      const float PI = 3.1415926535;
 
-      vec2 computeUV( vec2 uv, float k, float kcube, float var1, float sqrtval ){
+      vec2 computeUV( vec2 uv, float factor, float factor2 ){
         vec2 t = uv - .5;
-        float r2 = t.x * t.x + t.y * t.y;
-        float f = 1.0;
-        if(sqrtval < 0.5){
-          f = var1 + t.x * t.x / t.y * t.y * ( k + kcube * pow( t.x * t.x, t.y * t.y) );
-        } else{
-          f = var1 + r2 * ( k + kcube * sqrt( r2 ) );
+        float r2 = t.x * t.x + t.y * t.y ;
+        float f = 0.;
+        if( factor2 == 0.0){
+            f = 1. + r2 * factor - abs(factor * 0.2);
+        }else{
+            f = 1. + r2 * ( (factor - abs(factor * 0.2)) + (factor2 - abs(factor2 * 0.2)) * sqrt( r2 ) * 2.4 );    
         }
-        
         vec2 nUv = f * t + .5;
+        nUv.y = 1. - nUv.y;
         return nUv;
     }
-      void main() {  
-        float k = -1.0 * factor * 0.3;
-        float kcube = factor * -3.;
-        
-        float red = texture( tex, computeUV( vUv, k + chromation, kcube, var1, sqrtval ) ).r; 
-        float green = texture( tex, computeUV( vUv, k, kcube, var1, sqrtval ) ).g; 
-        float blue = texture( tex, computeUV( vUv, k - chromation, kcube, var1, sqrtval ) ).b; 
-        float alpha = texture( tex, computeUV( vUv, k, kcube, var1, sqrtval ) ).a; 
-        
-        gl_FragColor = vec4( red, green, blue, alpha );
-      }`,
+      void main() {
+        vec2 uv = vUv;
+        vec4 red = texture2D( tex, computeUV( uv, factor, factor2 ) ); 
+        gl_FragColor = red;
+      }
+      `,
 };
 
 //
@@ -84,8 +80,8 @@ export class LensPass extends Pass {
     this.quad.frustumCulled = false; // Avoid getting clipped
     this.scene.add(this.quad);
     this.factor = 0;
-    this.var1 = 1;
-    this.chromation = 0;
+    this.factor3 = 1;
+    this.factor2 = 0;
     this.time = 0;
     this.sqrtval = 1;
   }
@@ -96,8 +92,8 @@ export class LensPass extends Pass {
     this.uniforms["tex"].value = readBuffer.texture;
     this.uniforms["time"].value = this.time;
     this.uniforms["factor"].value = this.factor;
-    this.uniforms["chromation"].value = this.chromation;
-    this.uniforms["var1"].value = this.var1;
+    this.uniforms["factor2"].value = this.factor2;
+    this.uniforms["factor3"].value = this.factor3;
     this.uniforms["sqrtval"].value = this.sqrtval;
     this.time += 0.05;
     this.quad.material = this.material;
